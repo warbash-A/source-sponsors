@@ -139,7 +139,10 @@ def discover(name, event_type, industry, description, date, location, audience_s
 
     # Step 2: Identify sponsors
     logger.info("\n🎯 Step 2: Identifying sponsors from events...")
-    sponsor_service = SponsorIdentificationService()
+    # Pass Apify scraper to sponsor service if available
+    sponsor_service = SponsorIdentificationService(
+        apify_scraper=discovery_service.apify_scraper
+    )
     sponsors = sponsor_service.identify_sponsors(similar_events)
 
     if not sponsors:
@@ -234,14 +237,20 @@ def config():
     logger.info("="*60)
 
     eventbrite_key = os.getenv('EVENTBRITE_API_KEY')
+    apify_token = os.getenv('APIFY_API_TOKEN')
     openai_key = os.getenv('OPENAI_API_KEY')
 
     logger.info(f"Eventbrite API Key: {'✓ Configured' if eventbrite_key else '✗ Not configured'}")
+    logger.info(f"Apify API Token: {'✓ Configured' if apify_token else '✗ Not configured (will use sample data)'}")
     logger.info(f"OpenAI API Key: {'✓ Configured' if openai_key else '✗ Not configured (using templates)'}")
 
     logger.info("\nTo configure API keys:")
     logger.info("1. Copy .env.example to .env")
     logger.info("2. Add your API keys to the .env file")
+    logger.info("\nGet API keys from:")
+    logger.info("  - Eventbrite: https://www.eventbrite.com/platform/api")
+    logger.info("  - Apify: https://console.apify.com/account/integrations")
+    logger.info("  - OpenAI (optional): https://platform.openai.com/api-keys")
     logger.info("\nNote: OpenAI is optional - template-based emails will be used if not configured")
 
 

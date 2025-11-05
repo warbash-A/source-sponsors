@@ -16,8 +16,12 @@ logger = setup_logger(__name__)
 class SponsorIdentificationService:
     """Service to identify sponsors from event pages."""
 
-    def __init__(self):
-        """Initialize the sponsor identification service."""
+    def __init__(self, apify_scraper=None):
+        """Initialize the sponsor identification service.
+
+        Args:
+            apify_scraper: Optional ApifyEventbriteScraperService instance
+        """
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
@@ -31,6 +35,7 @@ class SponsorIdentificationService:
             'silver': ['silver'],
             'bronze': ['bronze', 'standard']
         }
+        self.apify_scraper = apify_scraper
 
     def identify_sponsors(self, events: List[Event]) -> Dict[str, Sponsor]:
         """Identify sponsors from a list of events."""
@@ -58,6 +63,16 @@ class SponsorIdentificationService:
                         all_sponsors[sponsor.company_name] = sponsor
 
                 time.sleep(1)  # Be polite, don't hammer servers
+
+        # Try Apify scraping if available and no sponsors found yet
+        if len(all_sponsors) == 0 and self.apify_scraper and self.apify_scraper.is_available():
+            logger.info("Attempting sponsor extraction via Apify scraper")
+            try:
+                apify_sponsors = self.apify_scraper.extract_sponsors_from_events(events)
+                all_sponsors.update(apify_sponsors)
+                logger.info(f"Found {len(apify_sponsors)} sponsors via Apify")
+            except Exception as e:
+                logger.warning(f"Apify sponsor extraction failed: {str(e)}")
 
         # If no sponsors found (e.g., example URLs or scraping failed), generate sample data
         if len(all_sponsors) == 0 and events:

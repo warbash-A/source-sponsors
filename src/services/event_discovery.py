@@ -192,14 +192,37 @@ class EventbriteApiClient:
 class EventDiscoveryService:
     """Service to discover similar events from various sources."""
 
-    def __init__(self, eventbrite_api_key: Optional[str] = None):
-        """Initialize the event discovery service."""
+    def __init__(
+        self,
+        eventbrite_api_key: Optional[str] = None,
+        apify_api_token: Optional[str] = None,
+        use_apify: bool = True
+    ):
+        """Initialize the event discovery service.
+
+        Args:
+            eventbrite_api_key: Eventbrite API key
+            apify_api_token: Apify API token for enhanced scraping
+            use_apify: Whether to use Apify for web scraping (default: True)
+        """
         self.eventbrite_api_key = eventbrite_api_key or os.getenv('EVENTBRITE_API_KEY')
         self.eventbrite_client = None
+        self.apify_scraper = None
+        self.use_apify = use_apify
 
         if self.eventbrite_api_key:
             self.eventbrite_client = EventbriteApiClient(self.eventbrite_api_key)
             logger.info("✓ Eventbrite API client initialized")
+
+        # Initialize Apify scraper if enabled
+        if use_apify:
+            try:
+                from .apify_scraper import ApifyEventbriteScraperService
+                self.apify_scraper = ApifyEventbriteScraperService(apify_api_token)
+                if self.apify_scraper.is_available():
+                    logger.info("✓ Apify scraper initialized")
+            except Exception as e:
+                logger.debug(f"Apify scraper not available: {str(e)}")
 
     def discover_similar_events(
         self,
@@ -253,16 +276,30 @@ class EventDiscoveryService:
             except Exception as e:
                 logger.warning(f"Eventbrite search failed: {str(e)}")
 
-        # Web scraping fallback (search multiple sources)
+        # Apify scraping (if available and enabled)
+        if len(similar_events) < max_results and self.apify_scraper and self.apify_scraper.is_available():
+            try:
+                search_query = f"{event_type} {industry}"
+                apify_events = self.apify_scraper.scrape_events(
+                    search_query=search_query,
+                    location=location,
+                    max_results=max_results - len(similar_events)
+                )
+                similar_events.extend(apify_events)
+                logger.info(f"Found {len(apify_events)} events from Apify scraper")
+            except Exception as e:
+                logger.warning(f"Apify scraping failed: {str(e)}")
+
+        # Sample data fallback (for demonstration)
         if len(similar_events) < max_results:
             try:
                 scraped_events = self._scrape_events(
                     event_type, industry, description, max_results - len(similar_events)
                 )
                 similar_events.extend(scraped_events)
-                logger.info(f"Found {len(scraped_events)} events from web scraping")
+                logger.info(f"Found {len(scraped_events)} events from fallback")
             except Exception as e:
-                logger.warning(f"Web scraping failed: {str(e)}")
+                logger.warning(f"Fallback generation failed: {str(e)}")
 
         logger.info(f"Total similar events found: {len(similar_events)}")
         return similar_events[:max_results]

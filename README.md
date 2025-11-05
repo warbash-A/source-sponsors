@@ -2,18 +2,26 @@
 
 An intelligent tool that automates the process of finding potential event sponsors and generating personalized outreach emails.
 
-**✨ Enhanced with Eventbrite MCP Integration** - Full Model Context Protocol capabilities for advanced event discovery!
+**✨ Enhanced with Dual Integration:**
+- **Eventbrite MCP** - Full Model Context Protocol capabilities for advanced event discovery
+- **Apify Platform** - Powerful web scraping for comprehensive event and sponsor extraction
 
 ## Features
 
-- **🔍 Enhanced Event Discovery**: Advanced Eventbrite API integration with MCP capabilities
-  - Category-based filtering
-  - Location search (latitude/longitude or address)
-  - Date range filtering
-  - Free/paid event filtering
-  - Event details retrieval by ID
-  - Venue information lookup
-- **🎯 Sponsor Identification**: Extracts sponsor information from event pages
+- **🔍 Three-Tier Event Discovery System**:
+  1. **Eventbrite API** (Primary) - Official API with MCP capabilities
+     - Category-based filtering
+     - Location search (latitude/longitude or address)
+     - Date range filtering
+     - Free/paid event filtering
+     - Event details retrieval by ID
+     - Venue information lookup
+  2. **Apify Scraper** (Secondary) - Advanced web scraping
+     - Extracts events not in API results
+     - Comprehensive event details
+     - Enhanced sponsor detection
+  3. **Sample Data** (Fallback) - Demonstration mode
+- **🎯 Sponsor Identification**: Multi-source sponsor extraction from event pages
 - **📧 Contact Discovery**: Finds email addresses and contact information for sponsors
 - **✍️ Email Generation**: Creates personalized outreach emails (template-based or AI-powered)
 - **📊 Export Options**: Exports to CSV, Excel, or individual email template files
@@ -24,9 +32,15 @@ An intelligent tool that automates the process of finding potential event sponso
 ```
 1. Event Description Input
    ↓
-2. Similar Events Discovery (Eventbrite API + Web Scraping)
+2. Three-Tier Event Discovery
+   - Eventbrite API (MCP-enhanced)
+   - Apify Web Scraping
+   - Sample Data Fallback
    ↓
-3. Sponsor Identification (Logo/Name extraction from event pages)
+3. Multi-Source Sponsor Identification
+   - Standard web scraping
+   - Apify-powered extraction
+   - Pattern matching
    ↓
 4. Contact Information Gathering (Email patterns + Website scraping)
    ↓
@@ -68,10 +82,17 @@ An intelligent tool that automates the process of finding potential event sponso
    ```
 
    Edit `.env` and add your API keys:
-   - `EVENTBRITE_API_KEY`: For discovering events (get it from https://www.eventbrite.com/platform/)
+   - `EVENTBRITE_API_KEY`: For official API access (get it from https://www.eventbrite.com/platform/)
+   - `APIFY_API_TOKEN`: For enhanced web scraping (get it from https://console.apify.com/account/integrations)
    - `OPENAI_API_KEY`: For AI-powered email generation (optional, will use templates if not provided)
 
-5. **Install Playwright browsers** (for advanced web scraping):
+   **Note**: All APIs are optional. The tool works with any combination:
+   - No APIs = Sample data only (demonstration mode)
+   - Eventbrite only = Official events
+   - Apify only = Scraped events
+   - Both = Maximum coverage and best results
+
+5. **Install Playwright browsers** (optional - for future enhancements):
    ```bash
    playwright install
    ```

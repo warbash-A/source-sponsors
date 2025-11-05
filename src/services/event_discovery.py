@@ -1,8 +1,16 @@
-"""Service for discovering similar events."""
+"""Enhanced service for discovering events using Eventbrite API.
+
+This service provides full Eventbrite API integration with capabilities matching
+the Eventbrite MCP server, including:
+- Advanced search with location, categories, dates, and price filters
+- Event details retrieval
+- Venue information
+- Category listings
+"""
 
 import os
 import requests
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 from bs4 import BeautifulSoup
 import time
@@ -13,13 +21,185 @@ from ..utils.logger import setup_logger
 logger = setup_logger(__name__)
 
 
+class EventbriteApiClient:
+    """Enhanced Eventbrite API client with full MCP capabilities."""
+
+    def __init__(self, api_key: str):
+        """Initialize the Eventbrite API client."""
+        self.api_key = api_key
+        self.base_url = "https://www.eventbriteapi.com/v3"
+        self.headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+
+    def search_events(
+        self,
+        query: Optional[str] = None,
+        location_latitude: Optional[float] = None,
+        location_longitude: Optional[float] = None,
+        location_within: Optional[str] = None,
+        location_address: Optional[str] = None,
+        categories: Optional[List[str]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        price: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Search for events with advanced filters.
+
+        Args:
+            query: Search query string
+            location_latitude: Latitude for location search
+            location_longitude: Longitude for location search
+            location_within: Distance radius (e.g., '10km', '10mi')
+            location_address: Address string for location search
+            categories: List of category IDs
+            start_date: ISO format date string (e.g., '2024-01-01T00:00:00Z')
+            end_date: ISO format date string
+            price: Filter by 'free' or 'paid' events
+            page: Page number for pagination
+            page_size: Results per page (max 100)
+
+        Returns:
+            Dictionary with 'events' and 'pagination' keys
+        """
+        params = {}
+
+        if query:
+            params['q'] = query
+
+        # Location handling - multiple options
+        if location_latitude and location_longitude:
+            params['location.latitude'] = location_latitude
+            params['location.longitude'] = location_longitude
+            if location_within:
+                params['location.within'] = location_within
+        elif location_address:
+            params['location.address'] = location_address
+
+        if categories:
+            params['categories'] = ','.join(categories)
+
+        if start_date:
+            params['start_date.range_start'] = start_date
+
+        if end_date:
+            params['start_date.range_end'] = end_date
+
+        if price:
+            params['price'] = price
+
+        params['page'] = page
+        params['page_size'] = min(page_size, 100)
+
+        try:
+            response = requests.get(
+                f"{self.base_url}/events/search/",
+                headers=self.headers,
+                params=params,
+                timeout=10
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            return {
+                'events': data.get('events', []),
+                'pagination': data.get('pagination', {})
+            }
+
+        except requests.exceptions.HTTPError as e:
+            error_msg = e.response.json().get('error_description', str(e)) if e.response else str(e)
+            raise Exception(f"Eventbrite API error: {error_msg}")
+        except Exception as e:
+            raise Exception(f"Request failed: {str(e)}")
+
+    def get_event(self, event_id: str) -> Dict[str, Any]:
+        """
+        Get detailed information about a specific event.
+
+        Args:
+            event_id: Eventbrite event ID
+
+        Returns:
+            Event details dictionary
+        """
+        try:
+            response = requests.get(
+                f"{self.base_url}/events/{event_id}/",
+                headers=self.headers,
+                timeout=10
+            )
+            response.raise_for_status()
+            return response.json()
+
+        except requests.exceptions.HTTPError as e:
+            error_msg = e.response.json().get('error_description', str(e)) if e.response else str(e)
+            raise Exception(f"Eventbrite API error: {error_msg}")
+        except Exception as e:
+            raise Exception(f"Request failed: {str(e)}")
+
+    def get_venue(self, venue_id: str) -> Dict[str, Any]:
+        """
+        Get information about a specific venue.
+
+        Args:
+            venue_id: Eventbrite venue ID
+
+        Returns:
+            Venue details dictionary
+        """
+        try:
+            response = requests.get(
+                f"{self.base_url}/venues/{venue_id}/",
+                headers=self.headers,
+                timeout=10
+            )
+            response.raise_for_status()
+            return response.json()
+
+        except requests.exceptions.HTTPError as e:
+            error_msg = e.response.json().get('error_description', str(e)) if e.response else str(e)
+            raise Exception(f"Eventbrite API error: {error_msg}")
+        except Exception as e:
+            raise Exception(f"Request failed: {str(e)}")
+
+    def get_categories(self) -> List[Dict[str, Any]]:
+        """
+        Get a list of all Eventbrite event categories.
+
+        Returns:
+            List of category dictionaries
+        """
+        try:
+            response = requests.get(
+                f"{self.base_url}/categories/",
+                headers=self.headers,
+                timeout=10
+            )
+            response.raise_for_status()
+            return response.json().get('categories', [])
+
+        except requests.exceptions.HTTPError as e:
+            error_msg = e.response.json().get('error_description', str(e)) if e.response else str(e)
+            raise Exception(f"Eventbrite API error: {error_msg}")
+        except Exception as e:
+            raise Exception(f"Request failed: {str(e)}")
+
+
 class EventDiscoveryService:
     """Service to discover similar events from various sources."""
 
     def __init__(self, eventbrite_api_key: Optional[str] = None):
         """Initialize the event discovery service."""
         self.eventbrite_api_key = eventbrite_api_key or os.getenv('EVENTBRITE_API_KEY')
-        self.eventbrite_base_url = 'https://www.eventbriteapi.com/v3'
+        self.eventbrite_client = None
+
+        if self.eventbrite_api_key:
+            self.eventbrite_client = EventbriteApiClient(self.eventbrite_api_key)
+            logger.info("✓ Eventbrite API client initialized")
 
     def discover_similar_events(
         self,
@@ -27,18 +207,46 @@ class EventDiscoveryService:
         industry: str,
         description: str,
         location: Optional[str] = None,
+        categories: Optional[List[str]] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        price: Optional[str] = None,
         max_results: int = 20
     ) -> List[Event]:
-        """Discover similar events from multiple sources."""
+        """
+        Discover similar events from multiple sources.
+
+        Args:
+            event_type: Type of event (conference, workshop, etc.)
+            industry: Industry category
+            description: Event description
+            location: Location string or address
+            categories: List of Eventbrite category IDs
+            start_date: Start date filter
+            end_date: End date filter
+            price: Price filter ('free' or 'paid')
+            max_results: Maximum number of results
+
+        Returns:
+            List of Event objects
+        """
         logger.info(f"Discovering similar events for {event_type} in {industry} industry")
 
         similar_events = []
 
-        # Try Eventbrite API first
-        if self.eventbrite_api_key:
+        # Try Eventbrite API first with enhanced search
+        if self.eventbrite_client:
             try:
-                eventbrite_events = self._search_eventbrite(
-                    event_type, industry, description, location, max_results
+                eventbrite_events = self._search_eventbrite_enhanced(
+                    event_type=event_type,
+                    industry=industry,
+                    description=description,
+                    location=location,
+                    categories=categories,
+                    start_date=start_date,
+                    end_date=end_date,
+                    price=price,
+                    max_results=max_results
                 )
                 similar_events.extend(eventbrite_events)
                 logger.info(f"Found {len(eventbrite_events)} events from Eventbrite")
@@ -46,65 +254,67 @@ class EventDiscoveryService:
                 logger.warning(f"Eventbrite search failed: {str(e)}")
 
         # Web scraping fallback (search multiple sources)
-        try:
-            scraped_events = self._scrape_events(
-                event_type, industry, description, max_results - len(similar_events)
-            )
-            similar_events.extend(scraped_events)
-            logger.info(f"Found {len(scraped_events)} events from web scraping")
-        except Exception as e:
-            logger.warning(f"Web scraping failed: {str(e)}")
+        if len(similar_events) < max_results:
+            try:
+                scraped_events = self._scrape_events(
+                    event_type, industry, description, max_results - len(similar_events)
+                )
+                similar_events.extend(scraped_events)
+                logger.info(f"Found {len(scraped_events)} events from web scraping")
+            except Exception as e:
+                logger.warning(f"Web scraping failed: {str(e)}")
 
         logger.info(f"Total similar events found: {len(similar_events)}")
         return similar_events[:max_results]
 
-    def _search_eventbrite(
+    def _search_eventbrite_enhanced(
         self,
         event_type: str,
         industry: str,
         description: str,
-        location: Optional[str],
-        max_results: int
+        location: Optional[str] = None,
+        categories: Optional[List[str]] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        price: Optional[str] = None,
+        max_results: int = 20
     ) -> List[Event]:
-        """Search for events using Eventbrite API."""
-        if not self.eventbrite_api_key:
+        """Search for events using enhanced Eventbrite API with MCP capabilities."""
+        if not self.eventbrite_client:
             return []
 
         events = []
-        headers = {
-            'Authorization': f'Bearer {self.eventbrite_api_key}'
-        }
 
         # Build search query
         keywords = f"{event_type} {industry}"
-        params = {
-            'q': keywords,
-            'sort_by': 'best',
-            'page_size': min(max_results, 50)
-        }
 
-        if location:
-            params['location.address'] = location
+        # Convert datetime to ISO format strings
+        start_date_iso = start_date.isoformat() if start_date else None
+        end_date_iso = end_date.isoformat() if end_date else None
 
         try:
-            response = requests.get(
-                f"{self.eventbrite_base_url}/events/search/",
-                headers=headers,
-                params=params,
-                timeout=10
+            # Search with enhanced parameters
+            result = self.eventbrite_client.search_events(
+                query=keywords,
+                location_address=location,
+                categories=categories,
+                start_date=start_date_iso,
+                end_date=end_date_iso,
+                price=price,
+                page=1,
+                page_size=min(max_results, 50)
             )
-            response.raise_for_status()
-            data = response.json()
 
-            for event_data in data.get('events', []):
+            for event_data in result.get('events', []):
                 try:
+                    # Extract event details
                     event = Event(
                         name=event_data.get('name', {}).get('text', 'Unknown Event'),
                         event_type=event_type,
                         industry=industry,
                         description=event_data.get('description', {}).get('text', '')[:500],
                         date=self._parse_date(event_data.get('start', {}).get('utc')),
-                        location=event_data.get('venue', {}).get('address', {}).get('localized_area_display'),
+                        location=self._format_location(event_data),
                         url=event_data.get('url')
                     )
                     events.append(event)
@@ -117,6 +327,59 @@ class EventDiscoveryService:
             raise
 
         return events
+
+    def get_event_details(self, event_id: str) -> Optional[Event]:
+        """
+        Get detailed information about a specific Eventbrite event.
+
+        Args:
+            event_id: Eventbrite event ID
+
+        Returns:
+            Event object with detailed information
+        """
+        if not self.eventbrite_client:
+            logger.warning("Eventbrite API client not initialized")
+            return None
+
+        try:
+            event_data = self.eventbrite_client.get_event(event_id)
+
+            event = Event(
+                name=event_data.get('name', {}).get('text', 'Unknown Event'),
+                event_type='conference',  # Default
+                industry='general',  # Default
+                description=event_data.get('description', {}).get('text', ''),
+                date=self._parse_date(event_data.get('start', {}).get('utc')),
+                location=self._format_location(event_data),
+                url=event_data.get('url')
+            )
+
+            logger.info(f"Retrieved details for event: {event.name}")
+            return event
+
+        except Exception as e:
+            logger.error(f"Failed to get event details: {str(e)}")
+            return None
+
+    def get_categories(self) -> List[Dict[str, Any]]:
+        """
+        Get list of all Eventbrite categories.
+
+        Returns:
+            List of category dictionaries with id, name, etc.
+        """
+        if not self.eventbrite_client:
+            logger.warning("Eventbrite API client not initialized")
+            return []
+
+        try:
+            categories = self.eventbrite_client.get_categories()
+            logger.info(f"Retrieved {len(categories)} Eventbrite categories")
+            return categories
+        except Exception as e:
+            logger.error(f"Failed to get categories: {str(e)}")
+            return []
 
     def _scrape_events(
         self,
@@ -177,3 +440,18 @@ class EventDiscoveryService:
             return datetime.fromisoformat(date_string.replace('Z', '+00:00'))
         except:
             return None
+
+    @staticmethod
+    def _format_location(event_data: Dict[str, Any]) -> str:
+        """Format location from event data."""
+        venue = event_data.get('venue')
+        if venue:
+            address = venue.get('address', {})
+            city = address.get('city', '')
+            region = address.get('region', '')
+            country = address.get('country', '')
+
+            parts = [p for p in [city, region, country] if p]
+            return ', '.join(parts)
+
+        return event_data.get('online_event', False) and 'Online' or 'TBD'

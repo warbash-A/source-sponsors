@@ -2,9 +2,17 @@
 
 An intelligent tool that automates the process of finding potential event sponsors and generating personalized outreach emails.
 
+**✨ Enhanced with Eventbrite MCP Integration** - Full Model Context Protocol capabilities for advanced event discovery!
+
 ## Features
 
-- **🔍 Event Discovery**: Automatically finds similar events using Eventbrite API and web scraping
+- **🔍 Enhanced Event Discovery**: Advanced Eventbrite API integration with MCP capabilities
+  - Category-based filtering
+  - Location search (latitude/longitude or address)
+  - Date range filtering
+  - Free/paid event filtering
+  - Event details retrieval by ID
+  - Venue information lookup
 - **🎯 Sponsor Identification**: Extracts sponsor information from event pages
 - **📧 Contact Discovery**: Finds email addresses and contact information for sponsors
 - **✍️ Email Generation**: Creates personalized outreach emails (template-based or AI-powered)
@@ -121,8 +129,40 @@ python main.py discover \
 - `--location`: Event location (optional)
 - `--audience`: Expected audience size (optional)
 - `--max-events`: Maximum similar events to search (default: 20)
+- `--categories`: Eventbrite category IDs, comma-separated (optional)
+- `--start-date`: Search events from this date, YYYY-MM-DD (optional)
+- `--end-date`: Search events until this date, YYYY-MM-DD (optional)
+- `--price`: Filter by 'free' or 'paid' events (optional)
 - `--output-format`: Output format - csv, excel, or both (default: both)
 - `--export-templates`: Export individual email template text files
+
+### Enhanced MCP Features
+
+**List Eventbrite Categories:**
+```bash
+python main.py categories
+```
+Shows all available Eventbrite category IDs and names. Use these with `--categories` option.
+
+**Get Event Details:**
+```bash
+python main.py event-details EVENT_ID
+```
+Retrieves detailed information about a specific Eventbrite event by ID.
+
+**Advanced Search Example:**
+```bash
+python main.py discover \
+  --name "AI Conference 2024" \
+  --type "conference" \
+  --industry "technology" \
+  --description "Artificial Intelligence conference" \
+  --categories "102,113" \
+  --start-date "2024-06-01" \
+  --end-date "2024-12-31" \
+  --price "paid" \
+  --location "San Francisco, CA"
+```
 
 ### Check Configuration
 

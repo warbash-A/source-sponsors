@@ -46,12 +46,23 @@ def cli():
 @click.option('--location', help='Event location', default=None)
 @click.option('--audience', 'audience_size', type=int, help='Expected audience size', default=None)
 @click.option('--max-events', type=int, default=20, help='Max similar events to search')
+@click.option('--categories', help='Eventbrite category IDs (comma-separated)', default=None)
+@click.option('--start-date', help='Search events from this date (YYYY-MM-DD)', default=None)
+@click.option('--end-date', help='Search events until this date (YYYY-MM-DD)', default=None)
+@click.option('--price', type=click.Choice(['free', 'paid']), help='Filter by free or paid events', default=None)
 @click.option('--output-format', type=click.Choice(['csv', 'excel', 'both']), default='both',
               help='Output format')
 @click.option('--export-templates', is_flag=True, help='Export individual email template files')
 def discover(name, event_type, industry, description, date, location, audience_size,
-             max_events, output_format, export_templates):
-    """Discover sponsors and generate outreach emails for your event."""
+             max_events, categories, start_date, end_date, price, output_format, export_templates):
+    """Discover sponsors and generate outreach emails for your event.
+
+    Enhanced with Eventbrite MCP capabilities including:
+    - Advanced category filtering
+    - Date range searches
+    - Free/paid event filtering
+    - Location-based discovery
+    """
 
     logger.info("🚀 Starting Source Sponsors workflow")
     logger.info("="*60)
@@ -64,6 +75,28 @@ def discover(name, event_type, industry, description, date, location, audience_s
         except ValueError:
             logger.error("Invalid date format. Use YYYY-MM-DD")
             sys.exit(1)
+
+    # Parse search date filters
+    search_start_date = None
+    if start_date:
+        try:
+            search_start_date = datetime.strptime(start_date, '%Y-%m-%d')
+        except ValueError:
+            logger.error("Invalid start-date format. Use YYYY-MM-DD")
+            sys.exit(1)
+
+    search_end_date = None
+    if end_date:
+        try:
+            search_end_date = datetime.strptime(end_date, '%Y-%m-%d')
+        except ValueError:
+            logger.error("Invalid end-date format. Use YYYY-MM-DD")
+            sys.exit(1)
+
+    # Parse categories if provided
+    category_list = None
+    if categories:
+        category_list = [c.strip() for c in categories.split(',')]
 
     # Create event object
     event = Event(
@@ -78,6 +111,10 @@ def discover(name, event_type, industry, description, date, location, audience_s
 
     logger.info(f"Event: {event.name}")
     logger.info(f"Type: {event.event_type} | Industry: {event.industry}")
+    if category_list:
+        logger.info(f"Categories: {', '.join(category_list)}")
+    if price:
+        logger.info(f"Price filter: {price}")
     logger.info("="*60)
 
     # Step 1: Discover similar events
@@ -88,6 +125,10 @@ def discover(name, event_type, industry, description, date, location, audience_s
         industry=event.industry,
         description=event.description,
         location=event.location,
+        categories=category_list,
+        start_date=search_start_date,
+        end_date=search_end_date,
+        price=price,
         max_results=max_events
     )
 
@@ -202,6 +243,73 @@ def config():
     logger.info("1. Copy .env.example to .env")
     logger.info("2. Add your API keys to the .env file")
     logger.info("\nNote: OpenAI is optional - template-based emails will be used if not configured")
+
+
+@cli.command()
+def categories():
+    """List all available Eventbrite event categories."""
+
+    logger.info("📋 Fetching Eventbrite Categories...")
+    logger.info("="*60)
+
+    discovery_service = EventDiscoveryService()
+
+    if not discovery_service.eventbrite_client:
+        logger.error("Eventbrite API key not configured!")
+        logger.info("\nTo configure:")
+        logger.info("1. Get API key from https://www.eventbrite.com/platform/api")
+        logger.info("2. Add to .env file: EVENTBRITE_API_KEY=your_key_here")
+        sys.exit(1)
+
+    categories = discovery_service.get_categories()
+
+    if not categories:
+        logger.warning("No categories found")
+        return
+
+    logger.info(f"\nFound {len(categories)} categories:\n")
+
+    for cat in categories:
+        cat_id = cat.get('id', 'N/A')
+        name = cat.get('name', 'Unknown')
+        logger.info(f"  [{cat_id}] {name}")
+
+    logger.info(f"\n💡 Use category IDs with --categories option in discover command")
+    logger.info("="*60)
+
+
+@cli.command()
+@click.argument('event_id')
+def event_details(event_id):
+    """Get detailed information about a specific Eventbrite event."""
+
+    logger.info(f"📅 Fetching Event Details for ID: {event_id}")
+    logger.info("="*60)
+
+    discovery_service = EventDiscoveryService()
+
+    if not discovery_service.eventbrite_client:
+        logger.error("Eventbrite API key not configured!")
+        logger.info("\nTo configure:")
+        logger.info("1. Get API key from https://www.eventbrite.com/platform/api")
+        logger.info("2. Add to .env file: EVENTBRITE_API_KEY=your_key_here")
+        sys.exit(1)
+
+    event = discovery_service.get_event_details(event_id)
+
+    if not event:
+        logger.error(f"Event {event_id} not found")
+        sys.exit(1)
+
+    logger.info(f"\n✓ Event Found:\n")
+    logger.info(f"  Name: {event.name}")
+    logger.info(f"  Type: {event.event_type}")
+    logger.info(f"  Date: {event.date.strftime('%Y-%m-%d %H:%M') if event.date else 'TBD'}")
+    logger.info(f"  Location: {event.location}")
+    logger.info(f"  URL: {event.url}")
+    logger.info(f"\n  Description:")
+    logger.info(f"  {event.description[:200]}...")
+    logger.info("="*60)
 
 
 if __name__ == '__main__':

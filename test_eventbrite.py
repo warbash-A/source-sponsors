@@ -9,12 +9,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 api_key = os.getenv('EVENTBRITE_API_KEY')
+public_token = os.getenv('EVENTBRITE_PUBLIC_TOKEN')
 
-print(f"Testing Eventbrite API with key: {api_key[:10]}...")
+print(f"Testing Eventbrite API with private token: {api_key[:10]}...")
+print(f"Also testing public token: {public_token[:10]}...")
 print("=" * 60)
 
 # Test 1: Get categories
-print("\nTest 1: Fetching categories...")
+print("\nTest 1: Fetching categories (with private token)...")
 headers = {
     "Authorization": f"Bearer {api_key}",
     "Content-Type": "application/json"
@@ -71,6 +73,31 @@ try:
         print(f"✗ Error: {response.status_code}")
         print(f"Response: {response.text}")
 
+except Exception as e:
+    print(f"✗ Exception: {str(e)}")
+
+# Test 3: Try with public token
+print("\n" + "=" * 60)
+print("\nTest 3: Testing with public token...")
+
+headers_public = {
+    "Authorization": f"Bearer {public_token}",
+    "Content-Type": "application/json"
+}
+
+try:
+    response = requests.get(
+        "https://www.eventbriteapi.com/v3/categories",
+        headers=headers_public,
+        timeout=10
+    )
+    print(f"Status Code: {response.status_code}")
+    if response.status_code == 200:
+        data = response.json()
+        categories = data.get('categories', [])
+        print(f"✓ Success! Found {len(categories)} categories")
+    else:
+        print(f"✗ Error: {response.text}")
 except Exception as e:
     print(f"✗ Exception: {str(e)}")
 

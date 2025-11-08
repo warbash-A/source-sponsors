@@ -102,6 +102,10 @@ class EventbriteApiClient:
                 params=params,
                 timeout=10
             )
+
+            # Log the actual URL being called for debugging
+            logger.debug(f"Eventbrite API request: {response.url}")
+
             response.raise_for_status()
             data = response.json()
 
@@ -111,8 +115,28 @@ class EventbriteApiClient:
             }
 
         except requests.exceptions.HTTPError as e:
-            error_msg = e.response.json().get('error_description', str(e)) if e.response else str(e)
-            raise Exception(f"Eventbrite API error: {error_msg}")
+            # Enhanced error handling with specific guidance
+            status_code = e.response.status_code if e.response else 'unknown'
+            url = e.response.url if e.response else 'unknown'
+
+            if status_code == 403:
+                error_msg = (
+                    f"403 Forbidden: API credentials rejected. "
+                    f"You may be using an OAuth Client Secret instead of a Personal OAuth Token. "
+                    f"Get a Personal OAuth Token from https://www.eventbrite.com/account-settings/apps"
+                )
+            elif status_code == 401:
+                error_msg = f"401 Unauthorized: API key is invalid or expired"
+            elif status_code == 404:
+                error_msg = f"404 Not Found: Endpoint {url} doesn't exist"
+            else:
+                try:
+                    error_data = e.response.json() if e.response else {}
+                    error_msg = error_data.get('error_description', str(e))
+                except:
+                    error_msg = str(e)
+
+            raise Exception(f"Eventbrite API error ({status_code}): {error_msg}")
         except Exception as e:
             raise Exception(f"Request failed: {str(e)}")
 

@@ -97,7 +97,7 @@ class EventbriteApiClient:
 
         try:
             response = requests.get(
-                f"{self.base_url}/events/search/",
+                f"{self.base_url}/events/search",
                 headers=self.headers,
                 params=params,
                 timeout=10
@@ -128,7 +128,7 @@ class EventbriteApiClient:
         """
         try:
             response = requests.get(
-                f"{self.base_url}/events/{event_id}/",
+                f"{self.base_url}/events/{event_id}",
                 headers=self.headers,
                 timeout=10
             )
@@ -153,7 +153,7 @@ class EventbriteApiClient:
         """
         try:
             response = requests.get(
-                f"{self.base_url}/venues/{venue_id}/",
+                f"{self.base_url}/venues/{venue_id}",
                 headers=self.headers,
                 timeout=10
             )
@@ -175,7 +175,7 @@ class EventbriteApiClient:
         """
         try:
             response = requests.get(
-                f"{self.base_url}/categories/",
+                f"{self.base_url}/categories",
                 headers=self.headers,
                 timeout=10
             )

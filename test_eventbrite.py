@@ -22,7 +22,7 @@ headers = {
 
 try:
     response = requests.get(
-        "https://www.eventbriteapi.com/v3/categories/",
+        "https://www.eventbriteapi.com/v3/categories",
         headers=headers,
         timeout=10
     )
@@ -51,7 +51,7 @@ print("\nTest 2: Searching for tech events...")
 
 try:
     response = requests.get(
-        "https://www.eventbriteapi.com/v3/events/search/",
+        "https://www.eventbriteapi.com/v3/events/search",
         headers=headers,
         params={"q": "technology", "page_size": 3},
         timeout=10

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "eventbrite": {
+      "command": "npx",
+      "args": ["-y", "@mseep/eventbrite-mcp"],
+      "env": {
+        "EVENTBRITE_API_TOKEN": "QZ45E5B7PATD2NFQXTKHALHFD5C4KVVUJGSRKCRQNHWBWIYLOV"
+      }
+    }
+  }
+}

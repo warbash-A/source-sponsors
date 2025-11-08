@@ -195,24 +195,41 @@ class EventDiscoveryService:
     def __init__(
         self,
         eventbrite_api_key: Optional[str] = None,
+        meetup_api_key: Optional[str] = None,
         apify_api_token: Optional[str] = None,
-        use_apify: bool = True
+        use_apify: bool = True,
+        use_meetup: bool = True
     ):
         """Initialize the event discovery service.
 
         Args:
             eventbrite_api_key: Eventbrite API key
+            meetup_api_key: Meetup API key
             apify_api_token: Apify API token for enhanced scraping
             use_apify: Whether to use Apify for web scraping (default: True)
+            use_meetup: Whether to use Meetup API (default: True)
         """
         self.eventbrite_api_key = eventbrite_api_key or os.getenv('EVENTBRITE_API_KEY')
         self.eventbrite_client = None
+        self.meetup_service = None
         self.apify_scraper = None
         self.use_apify = use_apify
+        self.use_meetup = use_meetup
 
         if self.eventbrite_api_key:
             self.eventbrite_client = EventbriteApiClient(self.eventbrite_api_key)
             logger.info("✓ Eventbrite API client initialized")
+
+        # Initialize Meetup service if enabled
+        if use_meetup:
+            try:
+                from .meetup_discovery import MeetupDiscoveryService
+                meetup_key = meetup_api_key or os.getenv('MEETUP_API_KEY')
+                if meetup_key:
+                    self.meetup_service = MeetupDiscoveryService(meetup_key)
+                    logger.info("✓ Meetup API client initialized")
+            except Exception as e:
+                logger.debug(f"Meetup client not available: {str(e)}")
 
         # Initialize Apify scraper if enabled
         if use_apify:
@@ -275,6 +292,23 @@ class EventDiscoveryService:
                 logger.info(f"Found {len(eventbrite_events)} events from Eventbrite")
             except Exception as e:
                 logger.warning(f"Eventbrite search failed: {str(e)}")
+
+        # Try Meetup API (if available and enabled)
+        if len(similar_events) < max_results and self.meetup_service:
+            try:
+                meetup_events = self.meetup_service.discover_events(
+                    event_type=event_type,
+                    industry=industry,
+                    description=description,
+                    location=location,
+                    start_date=start_date,
+                    end_date=end_date,
+                    max_results=max_results - len(similar_events)
+                )
+                similar_events.extend(meetup_events)
+                logger.info(f"Found {len(meetup_events)} events from Meetup")
+            except Exception as e:
+                logger.warning(f"Meetup search failed: {str(e)}")
 
         # Apify scraping (if available and enabled)
         if len(similar_events) < max_results and self.apify_scraper and self.apify_scraper.is_available():

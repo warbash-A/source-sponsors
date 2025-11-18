@@ -57,11 +57,12 @@ def discover(name, event_type, industry, description, date, location, audience_s
              max_events, categories, start_date, end_date, price, output_format, export_templates):
     """Discover sponsors and generate outreach emails for your event.
 
-    Enhanced with Eventbrite MCP capabilities including:
-    - Advanced category filtering
-    - Date range searches
-    - Free/paid event filtering
-    - Location-based discovery
+    Enhanced with Eventbrite and Meetup MCP capabilities:
+    - Advanced category filtering (Eventbrite)
+    - Date range searches (both platforms)
+    - Free/paid event filtering (Eventbrite)
+    - Location-based discovery (both platforms)
+    - Natural language search (Meetup)
     """
 
     logger.info("🚀 Starting Source Sponsors workflow")
@@ -237,10 +238,12 @@ def config():
     logger.info("="*60)
 
     eventbrite_key = os.getenv('EVENTBRITE_API_KEY')
+    meetup_token = os.getenv('MEETUP_ACCESS_TOKEN')
     apify_token = os.getenv('APIFY_API_TOKEN')
     openai_key = os.getenv('OPENAI_API_KEY')
 
     logger.info(f"Eventbrite API Key: {'✓ Configured' if eventbrite_key else '✗ Not configured'}")
+    logger.info(f"Meetup Access Token: {'✓ Configured' if meetup_token else '✗ Not configured'}")
     logger.info(f"Apify API Token: {'✓ Configured' if apify_token else '✗ Not configured (will use sample data)'}")
     logger.info(f"OpenAI API Key: {'✓ Configured' if openai_key else '✗ Not configured (using templates)'}")
 
@@ -249,6 +252,7 @@ def config():
     logger.info("2. Add your API keys to the .env file")
     logger.info("\nGet API keys from:")
     logger.info("  - Eventbrite: https://www.eventbrite.com/platform/api")
+    logger.info("  - Meetup: https://www.meetup.com/api/oauth/list/ (OAuth2 access token)")
     logger.info("  - Apify: https://console.apify.com/account/integrations")
     logger.info("  - OpenAI (optional): https://platform.openai.com/api-keys")
     logger.info("\nNote: OpenAI is optional - template-based emails will be used if not configured")

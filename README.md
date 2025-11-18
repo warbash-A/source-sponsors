@@ -2,13 +2,14 @@
 
 An intelligent tool that automates the process of finding potential event sponsors and generating personalized outreach emails.
 
-**✨ Enhanced with Dual Integration:**
+**✨ Enhanced with Triple Integration:**
 - **Eventbrite MCP** - Full Model Context Protocol capabilities for advanced event discovery
+- **Meetup MCP** - Natural language search for community meetups and local events
 - **Apify Platform** - Powerful web scraping for comprehensive event and sponsor extraction
 
 ## Features
 
-- **🔍 Three-Tier Event Discovery System**:
+- **🔍 Four-Tier Event Discovery System**:
   1. **Eventbrite API** (Primary) - Official API with MCP capabilities
      - Category-based filtering
      - Location search (latitude/longitude or address)
@@ -16,11 +17,17 @@ An intelligent tool that automates the process of finding potential event sponso
      - Free/paid event filtering
      - Event details retrieval by ID
      - Venue information lookup
-  2. **Apify Scraper** (Secondary) - Advanced web scraping
+  2. **Meetup API** (Secondary) - Community events with MCP capabilities
+     - Natural language query parsing
+     - Location-based discovery
+     - Online/remote event support
+     - Tech keyword recognition
+     - RSVP and group information
+  3. **Apify Scraper** (Tertiary) - Advanced web scraping
      - Extracts events not in API results
      - Comprehensive event details
      - Enhanced sponsor detection
-  3. **Sample Data** (Fallback) - Demonstration mode
+  4. **Sample Data** (Fallback) - Demonstration mode
 - **🎯 Sponsor Identification**: Multi-source sponsor extraction from event pages
 - **📧 Contact Discovery**: Finds email addresses and contact information for sponsors
 - **✍️ Email Generation**: Creates personalized outreach emails (template-based or AI-powered)
@@ -32,8 +39,9 @@ An intelligent tool that automates the process of finding potential event sponso
 ```
 1. Event Description Input
    ↓
-2. Three-Tier Event Discovery
+2. Four-Tier Event Discovery
    - Eventbrite API (MCP-enhanced)
+   - Meetup API (Natural language search)
    - Apify Web Scraping
    - Sample Data Fallback
    ↓
@@ -83,14 +91,16 @@ An intelligent tool that automates the process of finding potential event sponso
 
    Edit `.env` and add your API keys:
    - `EVENTBRITE_API_KEY`: For official API access (get it from https://www.eventbrite.com/platform/)
+   - `MEETUP_ACCESS_TOKEN`: For Meetup API access (OAuth2 token from https://www.meetup.com/api/oauth/list/)
    - `APIFY_API_TOKEN`: For enhanced web scraping (get it from https://console.apify.com/account/integrations)
    - `OPENAI_API_KEY`: For AI-powered email generation (optional, will use templates if not provided)
 
    **Note**: All APIs are optional. The tool works with any combination:
    - No APIs = Sample data only (demonstration mode)
-   - Eventbrite only = Official events
+   - Eventbrite only = Professional conferences and events
+   - Meetup only = Community meetups and local events
    - Apify only = Scraped events
-   - Both = Maximum coverage and best results
+   - All three = Maximum coverage and best results
 
 5. **Install Playwright browsers** (optional - for future enhancements):
    ```bash
@@ -235,9 +245,11 @@ Individual text files for each sponsor with:
 ## How It Works
 
 ### 1. Event Discovery
-- Uses Eventbrite API to find similar events based on keywords
-- Falls back to web scraping for additional sources
-- Filters by event type, industry, and location
+- Uses Eventbrite API to find professional conferences and large events
+- Uses Meetup API to find community meetups and local events
+- Falls back to Apify web scraping for additional sources
+- Falls back to sample data for demonstration
+- Filters by event type, industry, location, dates, and price
 
 ### 2. Sponsor Identification
 - Scrapes event pages for sponsor sections
@@ -285,6 +297,21 @@ Individual text files for each sponsor with:
 - More accurate event discovery
 - Access to structured event data
 - Better filtering options
+
+### Meetup API (Recommended)
+1. Go to https://www.meetup.com/api/oauth/list/
+2. Create an OAuth consumer
+3. Get your OAuth2 access token
+4. Add to `.env` file: `MEETUP_ACCESS_TOKEN=your_token_here`
+
+**Benefits:**
+- Access to community meetups and local events
+- Natural language search capabilities
+- Tech-focused event discovery
+- RSVP and group information
+- Online/remote event detection
+
+For detailed setup instructions, see [MEETUP_INTEGRATION.md](./MEETUP_INTEGRATION.md)
 
 ### OpenAI API (Optional)
 1. Go to https://platform.openai.com/
@@ -390,6 +417,14 @@ Contributions are welcome! Areas for improvement:
 ## License
 
 This project is provided as-is for educational and commercial use.
+
+## Additional Documentation
+
+For detailed information about specific integrations:
+
+- **[Eventbrite MCP Integration](./EVENTBRITE_MCP_INTEGRATION.md)** - Complete guide to Eventbrite API features
+- **[Meetup Integration](./MEETUP_INTEGRATION.md)** - Complete guide to Meetup API features and natural language search
+- **[Apify Integration](./APIFY_INTEGRATION.md)** - Web scraping platform integration details
 
 ## Disclaimer
 

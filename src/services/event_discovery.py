@@ -1,11 +1,18 @@
-"""Enhanced service for discovering events using Eventbrite API.
+"""Enhanced service for discovering events using Eventbrite and Meetup APIs.
 
-This service provides full Eventbrite API integration with capabilities matching
-the Eventbrite MCP server, including:
+This service provides full API integration with capabilities matching MCP servers:
+
+Eventbrite MCP capabilities:
 - Advanced search with location, categories, dates, and price filters
 - Event details retrieval
 - Venue information
 - Category listings
+
+Meetup MCP capabilities:
+- Natural language event search
+- Location-based discovery
+- Upcoming events filtering
+- Online/remote event support
 """
 
 import os
@@ -14,6 +21,7 @@ from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 from bs4 import BeautifulSoup
 import time
+import re
 
 from ..models import Event
 from ..utils.logger import setup_logger
@@ -189,12 +197,238 @@ class EventbriteApiClient:
             raise Exception(f"Request failed: {str(e)}")
 
 
+class MeetupApiClient:
+    """Meetup API client with MCP capabilities for event discovery."""
+
+    def __init__(self, access_token: str):
+        """Initialize the Meetup API client.
+
+        Args:
+            access_token: Meetup OAuth2 access token
+        """
+        self.access_token = access_token
+        self.base_url = "https://api.meetup.com"
+        self.headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        self.max_events = 100  # Configurable max events per query
+
+    def search_events(
+        self,
+        query: Optional[str] = None,
+        location: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        radius: Optional[float] = None,
+        max_results: int = 20
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for upcoming Meetup events with natural language support.
+
+        Args:
+            query: Search query (keywords, topics, event names)
+            location: Location string (city, state, country, or coordinates)
+            start_date: Filter events starting from this date
+            radius: Search radius in miles (default: 25)
+            max_results: Maximum number of results to return (max 100)
+
+        Returns:
+            List of event dictionaries with parsed data
+        """
+        params = {
+            'page': min(max_results, self.max_events),
+            'status': 'upcoming'
+        }
+
+        # Add location if provided
+        if location:
+            params['location'] = location
+
+        # Add start date range if provided
+        if start_date:
+            params['start_date_range'] = start_date.isoformat()
+
+        # Add text search if provided
+        if query:
+            # Extract parameters from natural language query
+            query_params = self._extract_query_parameters(query)
+
+            # Override with extracted parameters if found
+            if query_params.get('location'):
+                params['location'] = query_params['location']
+
+            if query_params.get('keywords'):
+                params['text'] = query_params['keywords']
+            elif query:
+                params['text'] = query
+
+        # Add radius if specified
+        if radius:
+            params['radius'] = radius
+
+        try:
+            response = requests.get(
+                f"{self.base_url}/find/upcoming_events",
+                headers=self.headers,
+                params=params,
+                timeout=15
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            # Parse and return events
+            events = []
+            for event_data in data.get('events', []):
+                parsed_event = self._parse_event(event_data)
+                if parsed_event:
+                    events.append(parsed_event)
+
+            logger.info(f"Found {len(events)} Meetup events")
+            return events
+
+        except requests.exceptions.HTTPError as e:
+            error_msg = str(e)
+            if e.response:
+                try:
+                    error_data = e.response.json()
+                    error_msg = error_data.get('errors', [{}])[0].get('message', str(e))
+                except:
+                    pass
+            raise Exception(f"Meetup API error: {error_msg}")
+        except Exception as e:
+            raise Exception(f"Meetup request failed: {str(e)}")
+
+    def _extract_query_parameters(self, query: str) -> Dict[str, Any]:
+        """
+        Extract search parameters from natural language query.
+
+        Args:
+            query: Natural language search query
+
+        Returns:
+            Dictionary with extracted parameters
+        """
+        params = {}
+        query_lower = query.lower()
+
+        # Extract location
+        location_patterns = [
+            r'near\s+([A-Za-z\s,]+?)(?:\s+(?:this|next|today|tomorrow|on)|$)',
+            r'in\s+([A-Za-z\s,]+?)(?:\s+(?:this|next|today|tomorrow|on)|$)',
+        ]
+
+        for pattern in location_patterns:
+            match = re.search(pattern, query_lower)
+            if match:
+                params['location'] = match.group(1).strip()
+                break
+
+        # Check for remote/online/virtual keywords
+        if any(word in query_lower for word in ['remote', 'online', 'virtual']):
+            params['is_online'] = True
+
+        # Extract tech and topic keywords (common Meetup categories)
+        tech_keywords = [
+            'python', 'javascript', 'java', 'react', 'node', 'ai', 'ml',
+            'data science', 'machine learning', 'web development', 'devops',
+            'cloud', 'aws', 'kubernetes', 'docker', 'networking', 'security'
+        ]
+
+        found_keywords = []
+        for keyword in tech_keywords:
+            if keyword in query_lower:
+                found_keywords.append(keyword)
+
+        if found_keywords:
+            params['keywords'] = ' '.join(found_keywords)
+        else:
+            # Use the original query, removing location phrases
+            cleaned_query = query
+            for pattern in location_patterns:
+                cleaned_query = re.sub(pattern, '', cleaned_query, flags=re.IGNORECASE)
+            params['keywords'] = cleaned_query.strip()
+
+        return params
+
+    def _parse_event(self, event_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Parse Meetup API event data into standardized format.
+
+        Args:
+            event_data: Raw event data from Meetup API
+
+        Returns:
+            Parsed event dictionary or None if parsing fails
+        """
+        try:
+            # Extract venue information
+            venue = event_data.get('venue', {})
+            venue_name = venue.get('name', '')
+            venue_city = venue.get('city', '')
+            venue_id = venue.get('id', 0)
+
+            # Check if event is online (venue_id of 1 indicates online)
+            is_online = venue_id == 1
+
+            # Format location string
+            if is_online:
+                location_str = "Online"
+            elif venue_city:
+                location_str = venue_city
+            else:
+                location_str = "TBD"
+
+            # Parse event time (milliseconds timestamp)
+            event_time_ms = event_data.get('time', 0)
+            event_datetime = datetime.fromtimestamp(event_time_ms / 1000) if event_time_ms else None
+
+            # Extract group information
+            group = event_data.get('group', {})
+            group_name = group.get('name', '')
+
+            # Extract description
+            description = event_data.get('description', '')
+
+            # Check for fee information
+            fee = event_data.get('fee')
+            is_free = fee is None
+            fee_amount = None
+            fee_currency = None
+            if fee:
+                fee_amount = fee.get('amount', 0)
+                fee_currency = fee.get('currency', 'USD')
+
+            parsed = {
+                'id': event_data.get('id'),
+                'name': event_data.get('name', 'Unnamed Event'),
+                'description': description,
+                'link': event_data.get('link', ''),
+                'datetime': event_datetime,
+                'location': location_str,
+                'venue_name': venue_name,
+                'is_online': is_online,
+                'group_name': group_name,
+                'group_urlname': group.get('urlname', ''),
+                'rsvp_count': event_data.get('yes_rsvp_count', 0),
+                'is_free': is_free,
+                'fee_amount': fee_amount,
+                'fee_currency': fee_currency
+            }
+
+            return parsed
+
+        except Exception as e:
+            logger.debug(f"Error parsing Meetup event: {str(e)}")
+            return None
+
+
 class EventDiscoveryService:
     """Service to discover similar events from various sources."""
 
     def __init__(
         self,
         eventbrite_api_key: Optional[str] = None,
+        meetup_access_token: Optional[str] = None,
         apify_api_token: Optional[str] = None,
         use_apify: bool = True
     ):
@@ -202,17 +436,24 @@ class EventDiscoveryService:
 
         Args:
             eventbrite_api_key: Eventbrite API key
+            meetup_access_token: Meetup OAuth2 access token
             apify_api_token: Apify API token for enhanced scraping
             use_apify: Whether to use Apify for web scraping (default: True)
         """
         self.eventbrite_api_key = eventbrite_api_key or os.getenv('EVENTBRITE_API_KEY')
+        self.meetup_access_token = meetup_access_token or os.getenv('MEETUP_ACCESS_TOKEN')
         self.eventbrite_client = None
+        self.meetup_client = None
         self.apify_scraper = None
         self.use_apify = use_apify
 
         if self.eventbrite_api_key:
             self.eventbrite_client = EventbriteApiClient(self.eventbrite_api_key)
             logger.info("✓ Eventbrite API client initialized")
+
+        if self.meetup_access_token:
+            self.meetup_client = MeetupApiClient(self.meetup_access_token)
+            logger.info("✓ Meetup API client initialized")
 
         # Initialize Apify scraper if enabled
         if use_apify:
@@ -275,6 +516,21 @@ class EventDiscoveryService:
                 logger.info(f"Found {len(eventbrite_events)} events from Eventbrite")
             except Exception as e:
                 logger.warning(f"Eventbrite search failed: {str(e)}")
+
+        # Try Meetup API if we need more results
+        if len(similar_events) < max_results and self.meetup_client:
+            try:
+                meetup_events = self._search_meetup(
+                    event_type=event_type,
+                    industry=industry,
+                    location=location,
+                    start_date=start_date,
+                    max_results=max_results - len(similar_events)
+                )
+                similar_events.extend(meetup_events)
+                logger.info(f"Found {len(meetup_events)} events from Meetup")
+            except Exception as e:
+                logger.warning(f"Meetup search failed: {str(e)}")
 
         # Apify scraping (if available and enabled)
         if len(similar_events) < max_results and self.apify_scraper and self.apify_scraper.is_available():
@@ -361,6 +617,55 @@ class EventDiscoveryService:
 
         except Exception as e:
             logger.error(f"Eventbrite API error: {str(e)}")
+            raise
+
+        return events
+
+    def _search_meetup(
+        self,
+        event_type: str,
+        industry: str,
+        location: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        max_results: int = 20
+    ) -> List[Event]:
+        """Search for events using Meetup API with MCP capabilities."""
+        if not self.meetup_client:
+            return []
+
+        events = []
+
+        # Build natural language query
+        query = f"{event_type} {industry}"
+
+        try:
+            # Search with Meetup API
+            meetup_events = self.meetup_client.search_events(
+                query=query,
+                location=location,
+                start_date=start_date,
+                max_results=max_results
+            )
+
+            for event_data in meetup_events:
+                try:
+                    # Convert Meetup event to Event model
+                    event = Event(
+                        name=event_data.get('name', 'Unknown Event'),
+                        event_type=event_type,
+                        industry=industry,
+                        description=event_data.get('description', '')[:500],
+                        date=event_data.get('datetime'),
+                        location=event_data.get('location', 'TBD'),
+                        url=event_data.get('link', '')
+                    )
+                    events.append(event)
+                except Exception as e:
+                    logger.debug(f"Error parsing Meetup event: {str(e)}")
+                    continue
+
+        except Exception as e:
+            logger.error(f"Meetup API error: {str(e)}")
             raise
 
         return events
